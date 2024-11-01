@@ -19,7 +19,7 @@ try:
 except Exception as e:
     st.error(f"Failed to connect to Snowflake: {e}")
 
-# Fetch fruit options from Snowflake, including the new 'SEARCH_ON' column
+# Fetch fruit options from Snowflake, including the 'SEARCH_ON' column
 def fetch_fruit_options(session):
     try:
         fruit_data = session.table("smoothies.public.fruit_options").select(
@@ -33,6 +33,10 @@ def fetch_fruit_options(session):
 # Fetch the fruit options as a Pandas DataFrame
 pd_df = fetch_fruit_options(session)
 
+# Input for the name on the smoothie
+name_on_order = st.text_input("Name on Smoothie:")
+st.write("The name on your Smoothie will be:", name_on_order)
+
 # Create multiselect for ingredients with values from the 'FRUIT_NAME' column
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
@@ -42,11 +46,13 @@ ingredients_list = st.multiselect(
 
 # Display the nutritional info for each selected fruit using Fruityvice API
 if ingredients_list:
+    ingredients_string = ', '.join(ingredients_list)
     for fruit_chosen in ingredients_list:
+        # Get the corresponding search term from 'SEARCH_ON' column
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
         st.write(f"The search value for {fruit_chosen} is {search_on}.")
         
-        # Get nutritional information from Fruityvice API
+        # Fetch nutritional information from Fruityvice API
         try:
             fruityvice_response = requests.get(f"https://fruityvice.com/api/fruit/{search_on}")
             if fruityvice_response.status_code == 200:
@@ -59,3 +65,22 @@ if ingredients_list:
                 st.warning(f"No data found for {fruit_chosen}")
         except Exception as e:
             st.error(f"Failed to fetch data for {fruit_chosen}: {e}")
+
+# Button to submit the smoothie order to Snowflake
+if st.button("Submit Order"):
+    if not name_on_order:
+        st.warning("Please enter a name for your smoothie.")
+    elif not ingredients_list:
+        st.warning("Please select at least one ingredient.")
+    else:
+        # Prepare the SQL statement for inserting the order
+        my_insert_stmt = f"""
+            INSERT INTO smoothies.public.orders (INGREDIENTS, name_on_order)
+            VALUES ('{ingredients_string}', '{name_on_order}')
+        """
+        try:
+            # Execute the insertion query
+            session.sql(my_insert_stmt).collect()
+            st.success("Your Smoothie is ordered!", icon="✅")
+        except Exception as e:
+            st.error(f"Failed to submit order: {e}")
