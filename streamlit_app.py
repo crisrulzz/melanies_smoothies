@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
@@ -47,3 +48,24 @@ if st.button("Submit Order"):
         submit_order(session, name_on_order, ingredients)
     else:
         st.warning("Please enter your name and select at least one ingredient.")
+
+# Call the Fruityvice API to get data about a specific fruit
+fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
+
+# Check if the response was successful
+if fruityvice_response.status_code == 200:
+    # Extract JSON data from the response
+    fruityvice_data = fruityvice_response.json()
+    
+    # Display the JSON data as text
+    st.text("Raw JSON data from Fruityvice API:")
+    st.json(fruityvice_data)  # Display JSON data in Streamlit
+
+    # Convert JSON data into a pandas DataFrame and display it
+    import pandas as pd
+    fv_df = pd.DataFrame([fruityvice_data])
+    st.write("Fruityvice Dataframe:")
+    st.dataframe(fv_df)  # Display as a DataFrame
+else:
+    # If the request was unsuccessful, show an error message
+    st.error(f"Failed to retrieve data from Fruityvice API. Status code: {fruityvice_response.status_code}")
