@@ -2,3 +2,4 @@ streamlit>=1.24.1
 snowflake-snowpark-python
 pandas>=2.0
 numpy<=1.21.6    # Ensure compatibility with Python 3.8
+requests
