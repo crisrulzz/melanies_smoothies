@@ -1,5 +1,7 @@
-import requests
+# Import necessary libraries
 import streamlit as st
+import pandas as pd  # Pandas for data handling
+import requests  # Requests for API calls
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 
@@ -17,55 +19,43 @@ try:
 except Exception as e:
     st.error(f"Failed to connect to Snowflake: {e}")
 
-# Fetch fruit options from Snowflake
+# Fetch fruit options from Snowflake, including the new 'SEARCH_ON' column
 def fetch_fruit_options(session):
     try:
-        fruit_data = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME')).collect()
-        return [row['FRUIT_NAME'] for row in fruit_data]
+        fruit_data = session.table("smoothies.public.fruit_options").select(
+            col('FRUIT_NAME'), col('SEARCH_ON')
+        ).collect()
+        return pd.DataFrame(fruit_data)
     except Exception as e:
         st.error(f"Error fetching fruit options: {e}")
-        return []
+        return pd.DataFrame()
 
-# Insert order into Snowflake
-def submit_order(session, name, ingredients):
-    ingredients_str = ", ".join(ingredients)
-    query = f"""
-        INSERT INTO smoothies.public.orders (INGREDIENTS, name_on_order)
-        VALUES ('{ingredients_str}', '{name}')
-    """
-    try:
-        session.sql(query).collect()
-        st.success("Your Smoothie order has been submitted!", icon="✅")
-    except Exception as e:
-        st.error(f"Failed to submit order: {e}")
+# Fetch the fruit options as a Pandas DataFrame
+pd_df = fetch_fruit_options(session)
 
-# Form for smoothie customization
-name_on_order = st.text_input("Name on Smoothie:")
-ingredients = st.multiselect("Choose up to 5 ingredients:", fetch_fruit_options(session), max_selections=5)
+# Create multiselect for ingredients with values from the 'FRUIT_NAME' column
+ingredients_list = st.multiselect(
+    "Choose up to 5 ingredients:",
+    options=pd_df["FRUIT_NAME"],
+    max_selections=5
+)
 
-if st.button("Submit Order"):
-    if name_on_order and ingredients:
-        submit_order(session, name_on_order, ingredients)
-    else:
-        st.warning("Please enter your name and select at least one ingredient.")
-
-# Call the Fruityvice API to get data about a specific fruit
-fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
-
-# Check if the response was successful
-if fruityvice_response.status_code == 200:
-    # Extract JSON data from the response
-    fruityvice_data = fruityvice_response.json()
-    
-    # Display the JSON data as text
-    st.text("Raw JSON data from Fruityvice API:")
-    st.json(fruityvice_data)  # Display JSON data in Streamlit
-
-    # Convert JSON data into a pandas DataFrame and display it
-    import pandas as pd
-    fv_df = pd.DataFrame([fruityvice_data])
-    st.write("Fruityvice Dataframe:")
-    st.dataframe(fv_df)  # Display as a DataFrame
-else:
-    # If the request was unsuccessful, show an error message
-    st.error(f"Failed to retrieve data from Fruityvice API. Status code: {fruityvice_response.status_code}")
+# Display the nutritional info for each selected fruit using Fruityvice API
+if ingredients_list:
+    for fruit_chosen in ingredients_list:
+        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
+        st.write(f"The search value for {fruit_chosen} is {search_on}.")
+        
+        # Get nutritional information from Fruityvice API
+        try:
+            fruityvice_response = requests.get(f"https://fruityvice.com/api/fruit/{search_on}")
+            if fruityvice_response.status_code == 200:
+                fruityvice_data = fruityvice_response.json()
+                # Convert to DataFrame and display
+                fv_df = pd.DataFrame([fruityvice_data])
+                st.subheader(f"{fruit_chosen} Nutrition Information")
+                st.dataframe(fv_df)
+            else:
+                st.warning(f"No data found for {fruit_chosen}")
+        except Exception as e:
+            st.error(f"Failed to fetch data for {fruit_chosen}: {e}")
