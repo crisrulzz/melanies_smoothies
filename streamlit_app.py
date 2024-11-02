@@ -2,7 +2,7 @@
 import streamlit as st
 
 # Write directly to the app
-#st.title("My Parents New Healthy Diner")
+#st.title('My Parents New Healthy Diner')
 
 #creating breakfast menu
 st.header('Breakfast Menu')
