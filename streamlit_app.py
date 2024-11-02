@@ -1,7 +1,7 @@
 # Import python packages
 import streamlit as st
 
-# Write directly to the app
+# Set the title of the app
 #st.title('My Parents New Healthy Diner')
 
 #creating breakfast menu
